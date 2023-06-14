@@ -1,71 +1,92 @@
 from flask import Flask, request, Response, json
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import altair as alt
+
+from sklearn import preprocessing
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
 
-#load data
-df = pd.read_csv("./bankData/bank.csv", header = None)
+#Load raw data file
+av_2019Survey = pd.read_csv("../Data/Raw/avsurvey2019data.csv")
 
-#drop campaign related columns
-df.drop(df.iloc[:, 8:16], inplace = True, axis = 1)
-X = df.iloc[:, :-1].values
-y = df.iloc[:, -1].values
+#Handle missing values
+categorical_columns = ["FamiliarityNews", "FamiliarityTech", "SharedCyclist", "SharedPedestrian", "AvImpact", "ProvingGround", "Speed25Mph", "TwoEmployeesAv", "ZipCode",
+                       "SchoolZoneManual","ShareTripData","SharePerformanceData","Age","ReportSafetyIncident", "ArizonaCrash", "BikePghMember", "AutoOwner", "SmartphoneOwner"]
+av_2019Survey[categorical_columns] = av_2019Survey[categorical_columns].fillna("Missing")
 
-#extract numeric features 
-numeric_data = df.iloc[:, [0, 5]].values
-numeric_df = pd.DataFrame(numeric_data, dtype = object)
-numeric_df.columns = ['age', 'balance']
+numeric_columns = ['SafeAv', 'SafeHuman']
+for column in numeric_columns:
+    mean_value = av_2019Survey[column].mean()
+    av_2019Survey[column].fillna(mean_value, inplace=True)
 
-#standard scaling age
-age_std_scale = StandardScaler()
-numeric_df['age'] = age_std_scale.fit_transform(numeric_df[['age']])
-#standard scaling balance
-balance_std_scale = StandardScaler()
-numeric_df['balance'] = balance_std_scale.fit_transform(numeric_df[['balance']])
+# Top 8 variables are selected based on the value from correlation analysis
+X_categoric_top8 = av_2019Survey.loc[:, ['FamiliarityTech','SharePerformanceData', 'ReportSafetyIncident',
+                                    'ArizonaCrash','Speed25Mph','ProvingGround','AvImpact','SchoolZoneManual']].values
 
-#extract categoric features
-X_categoric = df.iloc[:, [1,2,3,4,6,7]].values
-
-#onehotencoding
+#Onehotencoding
 ohe = OneHotEncoder()
-categoric_data = ohe.fit_transform(X_categoric).toarray()
-categoric_df = pd.DataFrame(categoric_data)
-categoric_df.columns = ohe.get_feature_names_out()
+categoric_data_top8 = ohe.fit_transform(X_categoric_top8).toarray()
+categoric_df_top8 = pd.DataFrame(categoric_data_top8)
+categoric_df_top8.columns = ohe.get_feature_names_out()
+categoric_df_top8.head()
 
-#combine numeric and categorix
-X_final = pd.concat([numeric_df, categoric_df], axis = 1)
+#Target variable
+safe_av_df =av_2019Survey [["SafeAv"]]
 
-#train model
-rfc = RandomForestClassifier(n_estimators = 100)
-rfc.fit(X_final, y)
+#Combine target and independent variables 
+df_2019_SafeAv = pd.concat([categoric_df_top8,safe_av_df], axis = 1)
+
+#Logistic Regression
+df = df_2019_SafeAv
+df['SafeAv'] = df['SafeAv'].astype(float)
+
+# Separate the features (X) and the target variable (y)
+X = df.drop('SafeAv', axis=1)
+y = df['SafeAv']
+
+# Transform the target variable
+y = y.apply(lambda x: 'Yes' if x >= 3 else 'No')
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Create a Logistic Regression model
+model = LogisticRegression()
+
+# Fit the model on the training data
+model.fit(X_train, y_train)
+
+# Make predictions on the testing data
+y_pred = model.predict(X_test)
+
+# Evaluate the model's accuracy
+accuracy = accuracy_score(y_test, y_pred)
 
 #create flask instance
 app = Flask(__name__)
 
-#create api
-@app.route('/api', methods=['GET', 'POST'])
+#create api which be hosted on the server
+@app.route('/api', methods=['GET', 'POST'])  
 def predict():
     #get data from request
-    data = request.get_json(force=True)
-    data_categoric = np.array([data["job"], data["marital"], data["education"], data["default"], data["housing"], data["loan"]])
-    data_categoric = np.reshape(data_categoric, (1, -1))
-    data_categoric = ohe.transform(data_categoric).toarray()
- 
-    data_age = np.array([data["age"]])
-    data_age = np.reshape(data_age, (1, -1))
-    data_age = np.array(age_std_scale.transform(data_age))
+    data = request.get_json(force=True)    
+    data_categoric = np.array([data["FamiliarityTech"], data["SharePerformanceData"], data["ReportSafetyIncident"], data["ArizonaCrash"], data["Speed25Mph"], data["ProvingGround"],
+                               data["AvImpact"],data["SchoolZoneManual"] ])
+    data_categoric = np.reshape(data_categoric, (1, -1))   #reshape the array to a column
 
-    data_balance = np.array([data["balance"]])
-    data_balance= np.reshape(data_balance, (1, -1))
-    data_balance = np.array(balance_std_scale.transform(data_balance))
+    data_categoric = ohe.transform(data_categoric).toarray()   #convert text to numeric data by using one hot encoder 
 
-    data_final = np.column_stack((data_age, data_balance, data_categoric))
-    data_final = pd.DataFrame(data_final, dtype=object)
+    data_final = pd.DataFrame(data_categoric, dtype=object)
 
     #make predicon using model
-    prediction = rfc.predict(data_final)
-    return Response(json.dumps(prediction[0]))
+    prediction = model.predict(data_final)
+    return Response(json.dumps(prediction[0])) # Response will be either Yes or No and sent back to requester 
+
 
