@@ -75,8 +75,8 @@ app = Flask(__name__)
 @app.route('/api', methods=['GET', 'POST'])  
 def predict():
     data = request.get_json(force=True)        #get data from request
-    data_categoric = np.array([data["FamiliarityTech"], data["SharePerformanceData"], data["ReportSafetyIncident"], data["ArizonaCrash"], data["Speed25Mph"], data["ProvingGround"],
-                               data["AvImpact"],data["SchoolZoneManual"] ])
+    data_categoric = np.array([data["FamiliarityTech"], data["SharePerformanceData"], data["ReportSafetyIncident"], data["ArizonaCrash"], data["Speed25Mph"], 
+                               data["ProvingGround"],data["AvImpact"],data["SchoolZoneManual"] ])
     data_categoric = np.reshape(data_categoric, (1, -1))   #reshape the array to a column
 
     data_categoric = ohe.transform(data_categoric).toarray()   #convert text to numeric data by using one hot encoder 
