@@ -13,7 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
 #Load raw data file
-av_2019Survey = pd.read_csv("../Data/Raw/avsurvey2019data.csv")
+av_2019Survey = pd.read_csv("./Data/av_2019.csv", header=0)
 
 #Handle missing values
 categorical_columns = ["FamiliarityNews", "FamiliarityTech", "SharedCyclist", "SharedPedestrian", "AvImpact", "ProvingGround", "Speed25Mph", "TwoEmployeesAv", "ZipCode",
@@ -74,8 +74,7 @@ app = Flask(__name__)
 #create api which be hosted on the server
 @app.route('/api', methods=['GET', 'POST'])  
 def predict():
-    #get data from request
-    data = request.get_json(force=True)    
+    data = request.get_json(force=True)        #get data from request
     data_categoric = np.array([data["FamiliarityTech"], data["SharePerformanceData"], data["ReportSafetyIncident"], data["ArizonaCrash"], data["Speed25Mph"], data["ProvingGround"],
                                data["AvImpact"],data["SchoolZoneManual"] ])
     data_categoric = np.reshape(data_categoric, (1, -1))   #reshape the array to a column
