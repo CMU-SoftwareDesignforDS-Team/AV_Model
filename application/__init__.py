@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import altair as alt
 
 from sklearn import preprocessing
 from sklearn.preprocessing import StandardScaler
